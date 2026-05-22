@@ -1,13 +1,25 @@
 import { useState, useCallback } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import ReactMarkdown from "react-markdown";
 import { useStore } from "../store";
 import { askLLM } from "../lib/llm";
+
+function getPreview(text: string): string {
+  const stripped = text
+    .replace(/```[\s\S]*?```/g, "[code]")
+    .replace(/#{1,6}\s/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/\*/g, "")
+    .replace(/`[^`]+`/g, "[code]")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\n+/g, " ")
+    .trim();
+  return stripped.length > 120 ? stripped.slice(0, 120) + "…" : stripped;
+}
 
 const SIDES = [Position.Top, Position.Bottom, Position.Left, Position.Right];
 
 export function BlockNode({ id }: NodeProps) {
-  const { file, settings, updateBlock, addBlock, deleteBlock } = useStore();
+  const { file, settings, updateBlock, addBlock, deleteBlock, setSelectedBlock, selectedBlockId, setToast } = useStore();
   const block = file.blocks[id];
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
@@ -38,8 +50,12 @@ export function BlockNode({ id }: NodeProps) {
       });
       updateBlock(id, { answer: full });
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error";
-      updateBlock(id, { answer: `**Error:** ${msg}` });
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      const isCredit = msg.toLowerCase().includes("credit") || msg.includes("402") || msg.includes("balance");
+      setToast(isCredit
+        ? "API 额度不足，请前往 console.anthropic.com 充值后重试"
+        : `请求失败：${msg}`
+      );
     } finally {
       setLoading(false);
       setStreamingAnswer("");
@@ -52,13 +68,16 @@ export function BlockNode({ id }: NodeProps) {
 
   if (!block) return null;
 
+  const isSelected = selectedBlockId === id;
   const displayAnswer = loading ? streamingAnswer : block.answer;
+  const preview = displayAnswer ? getPreview(displayAnswer) : null;
 
   return (
     <div
+      onClick={() => setSelectedBlock(id)}
       style={{
         background: "#1e1e2e",
-        border: "1px solid #45475a",
+        border: `1px solid ${isSelected ? "#89b4fa" : "#45475a"}`,
         borderRadius: 12,
         padding: 16,
         minWidth: 280,
@@ -66,7 +85,8 @@ export function BlockNode({ id }: NodeProps) {
         color: "#cdd6f4",
         fontFamily: "sans-serif",
         fontSize: 14,
-        boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+        boxShadow: isSelected ? "0 0 0 2px #89b4fa40" : "0 4px 20px rgba(0,0,0,0.4)",
+        cursor: "pointer",
       }}
     >
       {SIDES.map((pos) => (
@@ -82,16 +102,16 @@ export function BlockNode({ id }: NodeProps) {
         </span>
         <div style={{ display: "flex", gap: 6 }}>
           <button
-            onClick={() => updateBlock(id, { collapsed: !block.collapsed })}
+            onClick={(e) => { e.stopPropagation(); updateBlock(id, { collapsed: !block.collapsed }); }}
             style={btnStyle}
             title={block.collapsed ? "Expand" : "Collapse"}
           >
             {block.collapsed ? "▶" : "▼"}
           </button>
-          <button onClick={handleAddChild} style={btnStyle} title="Add child block">
+          <button onClick={(e) => { e.stopPropagation(); handleAddChild(); }} style={btnStyle} title="Add child block">
             +
           </button>
-          <button onClick={handleDelete} style={{ ...btnStyle, color: "#f38ba8" }} title="Delete block">
+          <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} style={{ ...btnStyle, color: "#f38ba8" }} title="Delete block">
             ✕
           </button>
         </div>
@@ -150,22 +170,41 @@ export function BlockNode({ id }: NodeProps) {
             </div>
           )}
 
-          {displayAnswer && (
-            <div style={{ color: "#cdd6f4", lineHeight: 1.6 }} className="nodrag">
-              <ReactMarkdown>{displayAnswer}</ReactMarkdown>
+          {preview && (
+            <div style={{ color: "#a6adc8", fontSize: 13, lineHeight: 1.5, marginTop: 4 }}>
+              {preview}
               {loading && <span style={{ color: "#89b4fa" }}>▌</span>}
             </div>
           )}
 
           {block.answer && (
-            <textarea
-              value={block.notes}
-              onChange={(e) => updateBlock(id, { notes: e.target.value })}
-              placeholder="Your notes..."
-              className="nodrag"
-              style={notesStyle}
-            />
+            <div style={{ marginTop: 6, fontSize: 11, color: "#585b70" }}>
+              Click to read full answer →
+            </div>
           )}
+
+          <textarea
+            value={block.notes}
+            onChange={(e) => updateBlock(id, { notes: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Your notes..."
+            className="nodrag"
+            style={{
+              marginTop: 8,
+              width: "100%",
+              minHeight: 56,
+              background: "#181825",
+              border: "1px solid #313244",
+              borderRadius: 8,
+              color: "#a6adc8",
+              padding: "6px 10px",
+              fontSize: 12,
+              resize: "vertical",
+              boxSizing: "border-box",
+              outline: "none",
+              fontFamily: "sans-serif",
+            }}
+          />
         </>
       )}
     </div>
@@ -204,16 +243,3 @@ const sendBtnStyle: React.CSSProperties = {
   fontSize: 16,
 };
 
-const notesStyle: React.CSSProperties = {
-  marginTop: 10,
-  width: "100%",
-  minHeight: 60,
-  background: "#181825",
-  border: "1px solid #313244",
-  borderRadius: 8,
-  color: "#a6adc8",
-  padding: "6px 10px",
-  fontSize: 12,
-  resize: "vertical",
-  boxSizing: "border-box",
-};

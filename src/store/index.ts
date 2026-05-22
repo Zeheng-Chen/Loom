@@ -14,12 +14,14 @@ interface AppState {
   file: LoomFile;
   settings: AppSettings;
   selectedBlockId: string | null;
+  toast: string | null;
 
   addBlock: (parentId: string | null, position?: { x: number; y: number }) => string;
   updateBlock: (id: string, updates: Partial<Block>) => void;
   deleteBlock: (id: string, recursive?: boolean) => void;
   setSelectedBlock: (id: string | null) => void;
   updateSettings: (updates: Partial<AppSettings>) => void;
+  setToast: (msg: string | null) => void;
 }
 
 function createRootBlock(): Block {
@@ -59,6 +61,7 @@ export const useStore = create<AppState>()(
     model: "claude-opus-4-5",
   },
   selectedBlockId: null,
+  toast: null,
 
   addBlock: (parentId, position) => {
     const id = nanoid();
@@ -137,6 +140,8 @@ export const useStore = create<AppState>()(
 
       updateSettings: (updates) =>
         set((state) => ({ settings: { ...state.settings, ...updates } })),
+
+      setToast: (msg) => set({ toast: msg }),
     }),
     {
       name: "loom-store",
