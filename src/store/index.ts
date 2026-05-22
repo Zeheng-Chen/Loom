@@ -1,6 +1,14 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { get as idbGet, set as idbSet, del as idbDel } from "idb-keyval";
 import type { Block, LoomFile, AppSettings } from "../lib/types";
 import { nanoid } from "nanoid";
+
+const idbStorage = createJSONStorage(() => ({
+  getItem: (name: string) => idbGet(name).then((v) => v ?? null),
+  setItem: (name: string, value: string) => idbSet(name, value),
+  removeItem: (name: string) => idbDel(name),
+}));
 
 interface AppState {
   file: LoomFile;
@@ -34,7 +42,9 @@ function createRootBlock(): Block {
 
 const rootBlock = createRootBlock();
 
-export const useStore = create<AppState>((set, get) => ({
+export const useStore = create<AppState>()(
+  persist(
+    (set, get) => ({
   file: {
     id: nanoid(),
     name: "Untitled",
@@ -125,6 +135,13 @@ export const useStore = create<AppState>((set, get) => ({
 
   setSelectedBlock: (id) => set({ selectedBlockId: id }),
 
-  updateSettings: (updates) =>
-    set((state) => ({ settings: { ...state.settings, ...updates } })),
-}));
+      updateSettings: (updates) =>
+        set((state) => ({ settings: { ...state.settings, ...updates } })),
+    }),
+    {
+      name: "loom-store",
+      storage: idbStorage,
+      partialize: (state) => ({ file: state.file, settings: state.settings }),
+    }
+  )
+);

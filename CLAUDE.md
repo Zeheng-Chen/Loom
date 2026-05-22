@@ -6,12 +6,12 @@ A web-based learning tool that replaces linear LLM chat with a mind-map structur
 
 - **Framework**: React + TypeScript (Vite)
 - **Canvas**: React Flow (`@xyflow/react`)
-- **Auto-layout**: dagre (`@dagrejs/dagre`)
+- **Auto-layout**: dagre (`@dagrejs/dagre`) — installed, not yet wired up
 - **State**: Zustand
-- **Persistence**: IndexedDB (no backend, no account)
-- **LLM**: Anthropic SDK (primary), OpenAI SDK + custom base URL (secondary)
+- **Persistence**: IndexedDB via `idb-keyval` + Zustand `persist` middleware
+- **LLM**: Anthropic SDK (primary, implemented); OpenAI SDK + custom base URL (planned)
 - **Markdown rendering**: `react-markdown`
-- **Note Block editor**: `react-md-editor`
+- **Note Block editor**: `react-md-editor` — planned, not yet implemented
 
 ## Core Concepts
 
@@ -43,7 +43,7 @@ interface Block {
   createdAt: number;
 }
 
-interface File {
+interface LoomFile {
   id: string;
   name: string;
   rootBlockId: string;
@@ -75,31 +75,53 @@ function buildAncestorChain(blockId: string, blocks: Record<string, Block>): Blo
 ```
 src/
 ├── components/
-│   ├── Canvas.tsx          # React Flow canvas wrapper
+│   ├── Canvas.tsx          # React Flow canvas wrapper + store sync
 │   ├── BlockNode.tsx       # Custom React Flow node (LLM block)
-│   ├── NoteBlockNode.tsx   # Custom React Flow node (note block)
-│   └── Sidebar.tsx         # File list + drag-to-create new block
+│   └── SettingsPanel.tsx   # API key + model settings overlay
 ├── store/
-│   └── index.ts            # Zustand store (blocks, files, settings)
+│   └── index.ts            # Zustand store (blocks, file, settings)
 ├── lib/
-│   ├── llm.ts              # Anthropic + OpenAI API calls
-│   ├── context.ts          # Ancestor chain builder
-│   ├── layout.ts           # dagre auto-layout
-│   └── db.ts               # IndexedDB persistence
+│   ├── types.ts            # Block, LoomFile, AppSettings interfaces
+│   ├── llm.ts              # Anthropic API call with streaming
+│   └── context.ts          # Ancestor chain builder
 ├── App.tsx
 └── main.tsx
 ```
 
-## MVP Scope (Build Night target)
+*Not yet implemented: `NoteBlockNode.tsx`, `Sidebar.tsx`, `lib/layout.ts` (dagre), `lib/db.ts` (IndexedDB)*
 
-- [ ] React Flow canvas: create Blocks, connect parent/child, pan/zoom
-- [ ] Add child Block from 8 directional handles on each Block
-- [ ] Drag new Block from sidebar onto canvas (creates floating Block)
-- [ ] LLM Block: type question → call Anthropic API → render Markdown answer
-- [ ] Ancestor Chain context passed to LLM automatically
-- [ ] Collapse/expand Blocks (title-only when collapsed)
-- [ ] API Key input (Anthropic)
-- [ ] Persist to IndexedDB
+## 功能路线图
+
+### v0.1 MVP ✅ 已完成
+- [x] React Flow 画布：创建 Block、连接父子节点、pan/zoom
+- [x] 双击画布新建 Block，点 `+` 按钮新建子 Block
+- [x] LLM Block：输入问题 → 调 Anthropic API → 流式渲染 Markdown 回答
+- [x] 祖先链上下文自动传递给 LLM
+- [x] Block 折叠/展开（折叠后只显示标题）
+- [x] Block 删除：无子节点直接删，有子节点内联确认后递归删
+- [x] Settings 面板：Anthropic API Key + 模型选择
+
+### v0.2 — 画布完善（下一步）
+- [ ] 从侧边栏拖拽新 Block 到画布（创建悬浮 Block）
+- [ ] dagre 自动布局
+- [ ] Block 标题可编辑（双击修改）
+- [x] IndexedDB 持久化（刷新后不丢数据）
+
+### v0.3 — 笔记与融合
+- [ ] Block 内笔记区（textarea，已有 UI 框架）
+- [ ] Note Block 类型（react-md-editor）
+- [ ] Merge 功能：选中父 Block + 澄清子 Block → LLM 重新合成 → 子 Block 消失
+
+### v0.4 — 多文件与工作区
+- [ ] 多文件支持
+- [ ] 文件间连接（树状）
+- [ ] Graph View（Obsidian 风格导航）
+
+### 未来
+- [ ] OpenAI + 自定义 base URL 支持
+- [ ] LLM 上下文自定义选取（不限于祖先链）
+- [ ] 导出为 Markdown / PDF
+- [ ] 云同步（可选）
 
 ## Block Deletion Logic
 
