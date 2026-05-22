@@ -185,6 +185,26 @@ Future: user selects additional Blocks (not on the ancestor path) to include.
 
 ---
 
+## Known Edge Cases
+
+### API 额度耗尽导致 Block 报废
+
+**场景**：用户在一棵已有多个连接和笔记的树中新建一个 Block，提问时 API 返回 402/400 额度不足错误。该 Block 有问题、有子节点连线、甚至有用户笔记，但没有回答——成为一个"死 Block"。
+
+**当前行为**：Block 的 `answer` 字段写入 `**Error:** ...`，block 留在画布上，连线和笔记不受影响，但视觉上这个 block 是废的。
+
+**问题**：
+- 用户已经在这个 block 上投入了结构（连线、笔记），不应该因为 API 失败就废掉
+- 错误信息直接写入 `answer` 字段会污染数据（如果用户充值后想重试，answer 里是错误文本）
+- 该 block 在祖先链中会把错误文本作为 LLM context 传给子节点
+
+**待解决方案**（未实现）：
+- Block 增加 `status` 字段：`"idle" | "loading" | "answered" | "error"`，错误不写入 `answer`
+- 错误状态下 block 显示重试按钮，而不是把错误信息存为答案
+- 祖先链构建时跳过 `status === "error"` 的 block（不把错误文本传给 LLM）
+
+---
+
 ## Feature Roadmap
 
 ### MVP (v0.1) — prove the core loop
