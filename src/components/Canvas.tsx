@@ -8,17 +8,38 @@ import {
   useNodesState,
   useEdgesState,
   type OnConnect,
+  type OnNodeDrag,
   type Node,
   type Edge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useStore } from "../store";
 import { BlockNode } from "./BlockNode";
+import type { Block } from "../lib/types";
+
+function getEdgeHandles(parent: Block, child: Block): { sourceHandle: string; targetHandle: string } {
+  const px = parent.position?.x ?? 0;
+  const py = parent.position?.y ?? 0;
+  const cx = child.position?.x ?? 0;
+  const cy = child.position?.y ?? 0;
+  const dx = cx - px;
+  const dy = cy - py;
+
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0
+      ? { sourceHandle: "source-right", targetHandle: "target-left" }
+      : { sourceHandle: "source-left", targetHandle: "target-right" };
+  } else {
+    return dy >= 0
+      ? { sourceHandle: "source-bottom", targetHandle: "target-top" }
+      : { sourceHandle: "source-top", targetHandle: "target-bottom" };
+  }
+}
 
 const nodeTypes = { block: BlockNode };
 
 export function Canvas() {
-  const { file, addBlock } = useStore();
+  const { file, addBlock, updateBlock } = useStore();
 
   const initialNodes: Node[] = useMemo(
     () =>
@@ -34,13 +55,18 @@ export function Canvas() {
   const initialEdges: Edge[] = useMemo(
     () =>
       Object.values(file.blocks).flatMap((block) =>
-        block.childrenIds.map((childId) => ({
-          id: `${block.id}-${childId}`,
-          source: block.id,
-          target: childId,
-          style: { stroke: "#45475a", strokeWidth: 2 },
-          animated: false,
-        }))
+        block.childrenIds.map((childId) => {
+          const child = file.blocks[childId];
+          const { sourceHandle, targetHandle } = getEdgeHandles(block, child);
+          return {
+            id: `${block.id}-${childId}`,
+            source: block.id,
+            target: childId,
+            sourceHandle,
+            targetHandle,
+            style: { stroke: "#45475a", strokeWidth: 2 },
+          };
+        })
       ),
     []
   );
@@ -50,7 +76,7 @@ export function Canvas() {
 
   const { file: currentFile } = useStore();
 
-  // Sync store → React Flow: add new nodes, remove deleted nodes
+  // Sync store → React Flow nodes and edges (full recompute)
   useEffect(() => {
     const storeIds = new Set(Object.keys(currentFile.blocks));
 
@@ -64,37 +90,39 @@ export function Canvas() {
         position: currentFile.blocks[id].position ?? { x: 400, y: 300 },
         data: {},
       }));
-      return kept.length + added.length !== nds.length || added.length > 0
-        ? [...kept, ...added]
-        : nds;
+      return kept.length !== nds.length || added.length > 0 ? [...kept, ...added] : nds;
     });
 
-    setEdges((eds) => {
-      const kept = eds.filter(
-        (e) => storeIds.has(e.source) && storeIds.has(e.target)
-      );
-      const existingEdgeIds = new Set(kept.map((e) => e.id));
-      const newEdges: Edge[] = [];
-      for (const id of storeIds) {
-        const block = currentFile.blocks[id];
-        if (!block.parentId) continue;
-        const edgeId = `${block.parentId}-${id}`;
-        if (!existingEdgeIds.has(edgeId)) {
-          newEdges.push({
-            id: edgeId,
-            source: block.parentId,
-            target: id,
-            style: { stroke: "#45475a", strokeWidth: 2 },
-          });
-        }
-      }
-      return newEdges.length > 0 ? [...kept, ...newEdges] : kept;
-    });
+    // Recompute ALL edges from store so handle directions stay correct after drag
+    const allEdges: Edge[] = [];
+    for (const id of storeIds) {
+      const block = currentFile.blocks[id];
+      if (!block.parentId) continue;
+      const parent = currentFile.blocks[block.parentId];
+      if (!parent) continue;
+      const { sourceHandle, targetHandle } = getEdgeHandles(parent, block);
+      allEdges.push({
+        id: `${block.parentId}-${id}`,
+        source: block.parentId,
+        target: id,
+        sourceHandle,
+        targetHandle,
+        style: { stroke: "#45475a", strokeWidth: 2 },
+      });
+    }
+    setEdges(allEdges);
   }, [currentFile.blocks]);
 
   const onConnect: OnConnect = useCallback(
     (connection) => setEdges((eds) => addEdge(connection, eds)),
     [setEdges]
+  );
+
+  const onNodeDragStop: OnNodeDrag = useCallback(
+    (_, node) => {
+      updateBlock(node.id, { position: node.position });
+    },
+    [updateBlock]
   );
 
   const onPaneDoubleClick = useCallback(
@@ -114,6 +142,7 @@ export function Canvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeDragStop={onNodeDragStop}
         onPaneClick={() => {}}
         onDoubleClick={onPaneDoubleClick}
         nodeTypes={nodeTypes}

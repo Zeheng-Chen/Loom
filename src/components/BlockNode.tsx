@@ -4,12 +4,7 @@ import ReactMarkdown from "react-markdown";
 import { useStore } from "../store";
 import { askLLM } from "../lib/llm";
 
-const DIRECTIONS = [
-  { position: Position.Top, style: {} },
-  { position: Position.Bottom, style: {} },
-  { position: Position.Left, style: {} },
-  { position: Position.Right, style: {} },
-];
+const SIDES = [Position.Top, Position.Bottom, Position.Left, Position.Right];
 
 export function BlockNode({ id }: NodeProps) {
   const { file, settings, updateBlock, addBlock, deleteBlock } = useStore();
@@ -74,10 +69,12 @@ export function BlockNode({ id }: NodeProps) {
         boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
       }}
     >
-      {DIRECTIONS.map(({ position }) => (
-        <Handle key={position} type="source" position={position} style={{ opacity: 0.4 }} />
+      {SIDES.map((pos) => (
+        <Handle key={`s-${pos}`} id={`source-${pos}`} type="source" position={pos} style={{ opacity: 0.4 }} />
       ))}
-      <Handle type="target" position={Position.Top} style={{ opacity: 0.4 }} />
+      {SIDES.map((pos) => (
+        <Handle key={`t-${pos}`} id={`target-${pos}`} type="target" position={pos} style={{ opacity: 0.4 }} />
+      ))}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <span style={{ fontWeight: 600, fontSize: 12, color: "#89b4fa", textTransform: "uppercase", letterSpacing: 1 }}>
