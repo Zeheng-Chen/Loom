@@ -106,6 +106,26 @@ _Avoid_: Auto-arrange
 - Inter-file navigation is via the **Graph View** (Obsidian-style).
 - Navigating into a File opens its Canvas as a separate full view.
 
+### API Key 安全说明
+
+**当前存储方式**：API Key 通过 Zustand `persist` 中间件以明文 JSON 存入浏览器 **IndexedDB**，key 名为 `"loom-store"`。
+
+**不会出现的风险**：
+- Key 不存在任何项目文件中，不会被 git 追踪，不会推到 GitHub。
+- `.gitignore` 已预防性屏蔽 `.env` / `.env.*`，防止未来开发时误提交。
+
+**仍然存在的风险**：
+- 本机物理访问：有权限操作这台电脑的人可通过 DevTools → Application → IndexedDB 看到明文 Key。
+- 同源 XSS：若 app 存在 XSS 漏洞，攻击者可读取 IndexedDB。
+- 有权限的浏览器扩展可访问 IndexedDB。
+
+**可选的加固方案**（未实现）：
+- Key 只存 `sessionStorage`（关标签页即清除，每次启动手动输入）。
+- Key 完全不持久化，只存内存（最安全，刷新即丢失）。
+- 对 Key 做对称加密后再存 IndexedDB（增加复杂度，但本质安全性有限）。
+
+**当前决策**：对个人本地学习工具，IndexedDB 明文存储风险可接受。若未来面向多用户或公共设备，需改为 sessionStorage 或不持久化方案。
+
 ### LLM providers (priority order)
 1. **Anthropic** (Claude)
 2. **OpenAI** + custom base URL (covers DeepSeek, Ollama, and any OpenAI-compatible API)
