@@ -19,7 +19,7 @@ function getPreview(text: string): string {
 const SIDES = [Position.Top, Position.Bottom, Position.Left, Position.Right];
 
 export function BlockNode({ id }: NodeProps) {
-  const { file, settings, updateBlock, addBlock, deleteBlock, setSelectedBlock, selectedBlockId, setToast } = useStore();
+  const { file, settings, updateBlock, addBlock, deleteBlock, expandBlock, setSelectedBlock, selectedBlockId, setToast } = useStore();
   const block = file.blocks[id];
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
@@ -97,8 +97,8 @@ export function BlockNode({ id }: NodeProps) {
       ))}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <span style={{ fontWeight: 600, fontSize: 12, color: "#89b4fa", textTransform: "uppercase", letterSpacing: 1 }}>
-          Block
+        <span style={{ fontWeight: 600, fontSize: 12, color: block.type === "note" ? "#a6e3a1" : "#89b4fa", textTransform: "uppercase", letterSpacing: 1 }}>
+          {block.type === "note" ? "Note" : "Block"}
         </span>
         <div style={{ display: "flex", gap: 6 }}>
           <button
@@ -108,6 +108,15 @@ export function BlockNode({ id }: NodeProps) {
           >
             {block.collapsed ? "▶" : "▼"}
           </button>
+          {block.type === "llm" && block.answer && (
+            <button
+              onClick={(e) => { e.stopPropagation(); expandBlock(id); }}
+              style={btnStyle}
+              title="Expand answer into child blocks"
+            >
+              ⊞
+            </button>
+          )}
           <button onClick={(e) => { e.stopPropagation(); handleAddChild(); }} style={btnStyle} title="Add child block">
             +
           </button>
@@ -146,6 +155,17 @@ export function BlockNode({ id }: NodeProps) {
         <div style={{ color: "#cdd6f4", fontWeight: 500 }}>
           {block.title || "Empty block"}
         </div>
+      ) : block.type === "note" ? (
+        <>
+          <div style={{ color: "#cdd6f4", fontWeight: 600, marginBottom: 6 }}>
+            {block.title}
+          </div>
+          {block.content && (
+            <div style={{ color: "#a6adc8", fontSize: 13, lineHeight: 1.5 }}>
+              {block.content.length > 160 ? block.content.slice(0, 160) + "…" : block.content}
+            </div>
+          )}
+        </>
       ) : (
         <>
           {!block.answer && (
