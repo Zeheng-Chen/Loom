@@ -25,8 +25,8 @@ export function SidePanel() {
         padding: "14px 20px",
         borderBottom: "1px solid #313244",
       }}>
-        <span style={{ fontSize: 12, color: "#89b4fa", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
-          Block Detail
+        <span style={{ fontSize: 12, color: block.type === "note" ? "#a6e3a1" : "#89b4fa", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+          {block.type === "note" ? "Note" : "Block Detail"}
         </span>
         <button
           onClick={() => setSelectedBlock(null)}
@@ -41,31 +41,46 @@ export function SidePanel() {
 
       {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-        {/* Question */}
-        {block.question && (
-          <div style={{
-            marginBottom: 16,
-            padding: "10px 14px",
-            background: "#1e1e2e",
-            borderRadius: 8,
-            borderLeft: "3px solid #89dceb",
-          }}>
-            <div style={{ fontSize: 11, color: "#585b70", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>
-              Question
+        {block.type === "note" ? (
+          <>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#cdd6f4", marginBottom: 16 }}>
+              {block.title}
             </div>
-            <div style={{ color: "#89dceb", fontWeight: 500, fontSize: 14 }}>
-              {block.question}
-            </div>
-          </div>
-        )}
-
-        {/* Answer */}
-        {block.answer ? (
-          <MarkdownRenderer>{block.answer}</MarkdownRenderer>
+            {block.content ? (
+              <MarkdownRenderer>{block.content}</MarkdownRenderer>
+            ) : (
+              <div style={{ color: "#45475a", fontSize: 13, fontStyle: "italic" }}>No content.</div>
+            )}
+          </>
         ) : (
-          <div style={{ color: "#45475a", fontSize: 13, fontStyle: "italic" }}>
-            No answer yet.
-          </div>
+          <>
+            {/* Question */}
+            {block.question && (
+              <div style={{
+                marginBottom: 16,
+                padding: "10px 14px",
+                background: "#1e1e2e",
+                borderRadius: 8,
+                borderLeft: "3px solid #89dceb",
+              }}>
+                <div style={{ fontSize: 11, color: "#585b70", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>
+                  Question
+                </div>
+                <div style={{ color: "#89dceb", fontWeight: 500, fontSize: 14 }}>
+                  {block.question}
+                </div>
+              </div>
+            )}
+
+            {/* Answer */}
+            {block.answer ? (
+              <MarkdownRenderer>{block.answer}</MarkdownRenderer>
+            ) : (
+              <div style={{ color: "#45475a", fontSize: 13, fontStyle: "italic" }}>
+                No answer yet.
+              </div>
+            )}
+          </>
         )}
       </div>
 

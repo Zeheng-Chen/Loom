@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { get as idbGet, set as idbSet, del as idbDel } from "idb-keyval";
 import type { Block, LoomFile, AppSettings } from "../lib/types";
 import { nanoid } from "nanoid";
+import { parseMarkdownSections } from "../lib/expand";
 
 const idbStorage = createJSONStorage(() => ({
   getItem: (name: string) => idbGet(name).then((v) => v ?? null),
@@ -19,6 +20,7 @@ interface AppState {
   addBlock: (parentId: string | null, position?: { x: number; y: number }) => string;
   updateBlock: (id: string, updates: Partial<Block>) => void;
   deleteBlock: (id: string, recursive?: boolean) => void;
+  expandBlock: (id: string) => void;
   setSelectedBlock: (id: string | null) => void;
   updateSettings: (updates: Partial<AppSettings>) => void;
   setToast: (msg: string | null) => void;
@@ -132,6 +134,45 @@ export const useStore = create<AppState>()(
       }
 
       toDelete.forEach((bid) => delete blocks[bid]);
+      return { file: { ...state.file, blocks } };
+    });
+  },
+
+  expandBlock: (id) => {
+    const block = get().file.blocks[id];
+    if (!block?.answer) return;
+    const sections = parseMarkdownSections(block.answer);
+    if (sections.length === 0) {
+      get().setToast("回答中没有找到 Markdown 标题（##），无法展开");
+      return;
+    }
+    const baseX = (block.position?.x ?? 400) + 420;
+    const baseY = block.position?.y ?? 100;
+    set((state) => {
+      const blocks = { ...state.file.blocks };
+      const newChildIds: string[] = [];
+      sections.forEach((section, i) => {
+        const childId = nanoid();
+        blocks[childId] = {
+          id: childId,
+          type: "note",
+          title: section.title,
+          question: "",
+          answer: "",
+          notes: "",
+          content: section.content,
+          parentId: id,
+          childrenIds: [],
+          position: { x: baseX, y: baseY + i * 220 },
+          collapsed: false,
+          createdAt: Date.now(),
+        };
+        newChildIds.push(childId);
+      });
+      blocks[id] = {
+        ...blocks[id],
+        childrenIds: [...blocks[id].childrenIds, ...newChildIds],
+      };
       return { file: { ...state.file, blocks } };
     });
   },
