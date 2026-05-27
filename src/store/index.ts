@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { get as idbGet, set as idbSet, del as idbDel } from "idb-keyval";
 import type { Block, LoomFile, AppSettings } from "../lib/types";
 import { nanoid } from "nanoid";
-import { parseMarkdownSections } from "../lib/expand";
+import { parseMarkdownTree, type Section } from "../lib/expand";
 
 const idbStorage = createJSONStorage(() => ({
   getItem: (name: string) => idbGet(name).then((v) => v ?? null),
@@ -18,6 +18,7 @@ interface AppState {
   toast: string | null;
 
   addBlock: (parentId: string | null, position?: { x: number; y: number }) => string;
+  addTestBlock: () => void;
   updateBlock: (id: string, updates: Partial<Block>) => void;
   deleteBlock: (id: string, recursive?: boolean) => void;
   expandBlock: (id: string) => void;
@@ -97,6 +98,28 @@ export const useStore = create<AppState>()(
     return id;
   },
 
+  addTestBlock: () => {
+    const id = nanoid();
+    const TEST_ANSWER = `# 神经网络基础\n\n神经网络由相互连接的节点构成。\n\n## 前向传播\n\n数据从输入层到输出层的计算过程。\n\n### 激活函数\n\n引入非线性，使网络能拟合复杂函数。\n\n### 权重矩阵\n\n每层的连接强度由权重矩阵决定。\n\n## 反向传播\n\n根据损失函数对权重求梯度并更新。\n\n### 梯度下降\n\n沿梯度反方向迭代更新参数。\n\n# 常见架构\n\n## CNN\n\n卷积神经网络，擅长图像处理。\n\n## Transformer\n\n基于注意力机制，主导 NLP 领域。`;
+    set((state) => {
+      const block: Block = {
+        id,
+        type: "llm",
+        title: "测试展开块",
+        question: "神经网络的基础知识是什么？",
+        answer: TEST_ANSWER,
+        notes: "",
+        content: "",
+        parentId: null,
+        childrenIds: [],
+        position: { x: 200, y: 200 },
+        collapsed: false,
+        createdAt: Date.now(),
+      };
+      return { file: { ...state.file, blocks: { ...state.file.blocks, [id]: block } } };
+    });
+  },
+
   updateBlock: (id, updates) => {
     set((state) => ({
       file: {
@@ -141,38 +164,44 @@ export const useStore = create<AppState>()(
   expandBlock: (id) => {
     const block = get().file.blocks[id];
     if (!block?.answer) return;
-    const sections = parseMarkdownSections(block.answer);
-    if (sections.length === 0) {
-      get().setToast("回答中没有找到 Markdown 标题（##），无法展开");
+    const roots = parseMarkdownTree(block.answer);
+    if (roots.length === 0) {
+      get().setToast("回答中没有找到 Markdown 标题，无法展开");
       return;
     }
     const baseX = (block.position?.x ?? 400) + 420;
     const baseY = block.position?.y ?? 100;
+    const minLevel = roots[0].level;
     set((state) => {
       const blocks = { ...state.file.blocks };
-      const newChildIds: string[] = [];
-      sections.forEach((section, i) => {
-        const childId = nanoid();
-        blocks[childId] = {
-          id: childId,
-          type: "note",
-          title: section.title,
-          question: "",
-          answer: "",
-          notes: "",
-          content: section.content,
-          parentId: id,
-          childrenIds: [],
-          position: { x: baseX, y: baseY + i * 220 },
-          collapsed: false,
-          createdAt: Date.now(),
-        };
-        newChildIds.push(childId);
-      });
-      blocks[id] = {
-        ...blocks[id],
-        childrenIds: [...blocks[id].childrenIds, ...newChildIds],
-      };
+      let counter = 0;
+
+      const createBlocks = (sections: Section[], parentId: string): string[] =>
+        sections.map((section) => {
+          const childId = nanoid();
+          const idx = counter++;
+          const depth = section.level - minLevel;
+          blocks[childId] = {
+            id: childId,
+            type: "note",
+            title: section.title,
+            question: "",
+            answer: "",
+            notes: "",
+            content: section.content,
+            parentId,
+            childrenIds: [],
+            position: { x: baseX + depth * 420, y: baseY + idx * 200 },
+            collapsed: false,
+            createdAt: Date.now(),
+          };
+          const grandChildIds = createBlocks(section.children, childId);
+          blocks[childId] = { ...blocks[childId], childrenIds: grandChildIds };
+          return childId;
+        });
+
+      const newChildIds = createBlocks(roots, id);
+      blocks[id] = { ...blocks[id], childrenIds: [...blocks[id].childrenIds, ...newChildIds] };
       return { file: { ...state.file, blocks } };
     });
   },
